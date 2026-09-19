@@ -13,7 +13,7 @@
 #define RST_PIN 21
 
 //assigning permanent laebl with pointer and a private handle for SPI device
-static const char *TAG - "RFID_TAG";
+static const char *TAG = "RFID_TAG";
 static  spi_device_handle_t spi;
 
 //initializing the SPI communication bus, using standard SPI 1 bit per cycle
@@ -35,11 +35,11 @@ void rfid_spi_init() {
   };
 
   //configuration for SPI slave device connected to SPI buses
-  spi_device_config_t devcfg = {
+  spi_device_interface_config_t devcfg = {
     //setting serial clock frequency
-    .clock_speed_hz = 1000000;
+    .clock_speed_hz = 1000000,
     //defining timing mode, MFRC522 uses SPI Mode 0
-    .mode = 0
+    .mode = 0,
     //defining the chip select pin, allows ESP32 to communicatee specifically with this device
     .spics_io_num = SDA_PIN,
     //dicates how many SPI transactions can be running at a time

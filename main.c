@@ -30,7 +30,7 @@ void rfid_spi_init() {
     .quadwp_io_num = -1,
     //quad hold used in 4-bit transmission, quad SPI, which I'm not using
     .quadhd_io_num = -1,
-    //max size of a single data transfer at a time in bytes, accounts for 
+    //max size of a single data transfer at a time in byte 
     .max_transfer_sz = 32,
   };
 
@@ -55,7 +55,7 @@ void rfid_spi_init() {
 }
 
 //Now writing a byte to MFRC522 register
-//ESP32 sends 8 bit value to MFRC522 to control behavior, e.g. "Scan for cads" or "soft reset"
+//ESP32 sends 8 bit value to MFRC522 to control behavior, e.g. "Scan for cards" or "soft reset"
 void write_to_mfrc522_register(uint8_t reg, uint8_t value) {
   //initializing an array of 2 8bit integers, will use to write a value to a register
   uint8_t data[2] = { (reg << 1) & 0x7E, value};
@@ -90,7 +90,7 @@ uint8_t read_from_mfrc522_register(uint8_t reg) {
 }
 
 void app_main() {
-  ESP_LOGI(TAG, "Initializing SPI interface...");
+  printf("%s: Initializing SPI interface...\n", TAG);
   rfid_spi_init();
 
   //assigning GPIO pin to control hardware reset line of the SPI slave device
@@ -109,7 +109,7 @@ void app_main() {
   while (true) {
     //reads 0x37 which is version register, verifying SPI connection
     uint8_t version = read_from_mfrc522_register(0x37);
-    ESP_LOGI(TAG, "MFRC522 version: 0x%02X", version);
+    printf("%s: MFRC522 version: 0x%02X\n", TAG, version);
     vTaskDelay(pdMS_TO_TICKS(1000));
   }
 }

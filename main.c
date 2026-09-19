@@ -1,58 +1,37 @@
 #include <stdio.h>
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+#include "driver/spi_master.h"
 #include "driver/gpio.h"
-#include "unist.h"
-#include "SPI.h"
-#include <MFRC522.h>
+#include "esp_log.h"
 
-#define SS_PIN 5
+//defining the pins on ESP32 to be used
+#define SDA_PIN 5
+#define SCK_PIN 18
+#define MOSI_PIN 23
+#define MISO_PIN 19
 #define RST_PIN 21
-#define led_pin 22
 
-MFRC522 rfid(SS_PIN, RST_PIN);
+//assigning permanent laebl with pointer and a private handle for SPI device
+static const char *TAG - "RFID_TAG";
+static  spi_device_handle_t spi;
 
-//simulate SPI 
-void spi_message()uint8_t *data_out, uint8_t *data_in, uint8_t len) {
-
+//initializing the SPI communication bus
+void rfid_spi_init() {
+  //configuring GPIO pins for SPI architecture
+  spi_bus_config_t buscfg = {
+    //Master In Slave Out, receives data from MFRC522 and to the ESP32
+    .miso_io_num = MISO_PIN,
+    //Master Out Slave In, sends data from the ESP32 to the MFRC522
+    .mosi_io_num = MOSI_PIN, 
+    //Serial Clock, used to sync transfer of data bits between master and slave devices
+    .sclk_io_num = SCK_PIN,
+    //quad write protect used in 4-bit transmission, quad SPI, which I'm not using
+    .quadwp_io_num = -1,
+    //quad hold used in 4-bit transmission, quad SPI, which I'm not using
+    .quadhd_io_num = -1,
+    //max size of a single data transfer at a time in bytes
+    .max_transfer_sz = 32,
+  };
 }
 
-//send UID data to ESP32
-void send_uid() {
-  for (int i = 0; i <  10; i++) {
-    uint8_t uid_data[4] {0x12, 0x34, 0x56,}
-    //print UID data
-    printf("UID %d: ", i + 1);
-    for (int j = 0; j < 4; j++) {
-      printf("%02X", uid_data[j]);
-    }
-    printf("\n");
-
-    //send UID data via SPI
-    spi_transfer(uid_data, NULL, 4):
-  }
-}
-
-//chip and pin setup
-void init() {
-
-}
-
-void app_main() {
-  //init chip
-  init()
-
-  //send UID data to ESP32 in intervals
-  while (true) {
-    send_uid();
-    sleep(5)
-  }
-
-
-
-
-  while (true) {
-    gpio_set_level(LED_PIN, 1);
-    vTaskDelay(1000 / portTICK_PERIOD_MS);
-  }
-}

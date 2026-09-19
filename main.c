@@ -89,3 +89,27 @@ uint8_t read_from_mfrc522_register(uint8_t reg) {
   return rx_data[1];
 }
 
+void app_main() {
+  ESP_LOGI(TAG, "Initializing SPI interface...");
+  rfid_spi_init();
+
+  //assigning GPIO pin to control hardware reset line of the SPI slave device
+  gpio_set_direction(RST_PIN, GPIO_MODE_OUTPUT);
+  //pull low
+  gpio_set_level(RST_PIN, 0);
+  vTaskDelay(pdMS_TO_TICKS(50));
+  //pull high
+  gpio_set_level(RST_PIN, 1);
+  vTaskDelay(pdMS_TO_TICKS(50));
+
+  //soft reset command, command register 0x01, soft reset 0x0F
+  write_to_mfrc522_register(0x01, 0x0F);
+
+  //loop to constantly check and log version of MFRC522 to ensure that SPI connection is working
+  while (true) {
+    //reads 0x37 which is version register, verifying SPI connection
+    uint8_t version = read_from_mfrc522_register(0x37);
+    ESP_LOGI(TAG, "MFRC522 version: 0x%02X", version);
+    vTaskDelay(pdMS_TO_TICKS(1000));
+  }
+}

@@ -16,7 +16,7 @@
 static const char *TAG - "RFID_TAG";
 static  spi_device_handle_t spi;
 
-//initializing the SPI communication bus
+//initializing the SPI communication bus, using standard SPI 1 bit per cycle
 void rfid_spi_init() {
   //configuring GPIO pins for SPI architecture
   spi_bus_config_t buscfg = {
@@ -30,7 +30,7 @@ void rfid_spi_init() {
     .quadwp_io_num = -1,
     //quad hold used in 4-bit transmission, quad SPI, which I'm not using
     .quadhd_io_num = -1,
-    //max size of a single data transfer at a time in bytes
+    //max size of a single data transfer at a time in bytes, accounts for 
     .max_transfer_sz = 32,
   };
 
@@ -52,6 +52,40 @@ void rfid_spi_init() {
   ESP_ERROR_CHECK(spi_bus_initialize(HSPI_HOST, &buscfg, SPI_DMA_CH_AUTO));
   //attaching MFRC522 device to SPI bus, pointer to define settings for this device, pointer to private handle 
   ESP_ERROR_CHECK(spi_bus_add_device(HSPI_HOST, &devcfg, &spi));
+}
 
+//Now writing a byte to MFRC522 register
+//ESP32 sends 8 bit value to MFRC522 to control behavior, e.g. "Scan for cads" or "soft reset"
+void write_to_mfrc522_register(uint8_t reg, uint8_t value) {
+  //initializing an array of 2 8bit integers, will use to write a value to a register
+  uint8_t data[2] = { (reg << 1) & 0x7E, value};
+  //initializing a structure configuration for the SPI transaction, using designated initializers
+  //designated initializers let me initialize specific members of the structure by name
+  spi_transaction_t t = {
+    .length = 16 
+    //tx, transmitter buffer
+    .tx_buffer = data,
+  };
+  //executing the SPI transaction defined by structure t, sent to device with handle spi
+  //Chip Select line is pulled low, data is clocked out, and reads back incoming data from MFRC522, then pulls Chip Select back high
+  spi_device_transmit(spi, &t);
+}
+
+//Now reading a byte from an MFRC522 register
+//provide the register address to ESP32 and the function will talk to MFRC522 via SPI to fetch and return the byte at that register
+uint8_t read_from_mfrc522_register(uint8_t reg) {
+  //this is formatting an 8 bit register addres in MFRC522 for SPI protocol
+  uint8_t addr = ((reg << 1) & 0x7E) | 0x80;
+  //creates and initializes fixed array of 2 bytes to be used as a buffer for SPI data
+  uint8_t rx_data[2] = {0};
+  spi_transaction_t t = {
+    .length = 16,
+    .tx_buffer = &addr,
+    //rx, receiver buffer
+    .rx_buffer = rx_data,
+  };
+  spi_device_transmit(spi, &t);
+  //retrieves the 2nd byte (C index array starts at 0) from the SPI slave (MFRC522) in the transactio
+  return rx_data[1];
 }
 

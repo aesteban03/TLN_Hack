@@ -62,9 +62,9 @@ void write_to_mfrc522_register(uint8_t reg, uint8_t value) {
   //initializing a structure configuration for the SPI transaction, using designated initializers
   //designated initializers let me initialize specific members of the structure by name
   spi_transaction_t t = {
-    .length = 16 
+    .length = 16,
     //tx, transmitter buffer
-    .tx_buffer = data,
+    .tx_buffer = &data,
   };
   //executing the SPI transaction defined by structure t, sent to device with handle spi
   //Chip Select line is pulled low, data is clocked out, and reads back incoming data from MFRC522, then pulls Chip Select back high

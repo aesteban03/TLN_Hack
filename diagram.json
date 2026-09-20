@@ -10,7 +10,14 @@
       "left": 0,
       "attrs": { "builder": "esp-idf" }
     },
-    { "type": "board-mfrc522", "id": "rfid1", "top": 26.15, "left": 157.04, "attrs": {} }
+    { "type": "board-mfrc522", "id": "rfid1", "top": 26.15, "left": 157.04, "attrs": {} },
+    {
+      "type": "wokwi-pushbutton",
+      "id": "btn1",
+      "top": 120,
+      "left": -100,
+      "attrs": { "color": "red", "label": "Simulate Clone" }
+    }
   ],
   "connections": [
     [ "esp:TX", "$serialMonitor:RX", "", [] ],
@@ -21,7 +28,9 @@
     [ "rfid1:MISO", "esp:19", "orange", [ "h0" ] ],
     [ "esp:GND.2", "rfid1:GND", "green", [ "v0", "h43.24", "v86.4" ] ],
     [ "rfid1:RST", "esp:21", "purple", [ "h-28.8", "v-48" ] ],
-    [ "rfid1:3.3V", "esp:3V3", "black", [ "h-19.2", "v-144", "h-153.6", "v38.4" ] ]
+    [ "rfid1:3.3V", "esp:3V3", "black", [ "h-19.2", "v-144", "h-153.6", "v38.4" ] ],
+    [ "btn1:1.A", "esp:4", "red", [ "v0" ] ],
+    [ "btn1:2.A", "esp:GND.1", "black", [ "v0" ] ]
   ],
   "dependencies": {}
 }

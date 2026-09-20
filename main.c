@@ -38,9 +38,13 @@
   //specifies command byte used by RFID reader to start anti-collision process at cascade lvl 1 with a card/tag
   #define PICC_CMD_SEL_CL1 0x93
 
-  //For card registration & UID and encrypted string storage
+  //For cloned-card simulation
+  #define CLONE_TOGGLE_PIN 4
+
+  //For card registration & UID and encrypted key storage
   #define MAX_CARDS 3
   #define UID_LEN 4
+  #define KEY_LEN 8
   uint8_t registered_cards[MAX_CARDS][UID_LEN]; //stores 3 cards of 4 byte UID's, for simplicity.
   uint8_t blue_uid[UID_LEN] = {0x01, 0x02, 0x03, 0x04};
   int blue_card_index = 0; 
@@ -51,7 +55,7 @@
     }
   }
 
-  //compares 2 uid's to see if they are identical, to be used when verifyingf card registration
+   //compares 2 uid's to see if they are identical, to be used when verifyingf card registration
   bool compare_uid(const uint8_t *id1, const uint8_t *id2) {
     for (int i = 0; i < UID_LEN; i++) {
       if (id1[i] != id2[i]) return false;
@@ -69,6 +73,89 @@
     printf("Access Denied! UID: %02X:%02X:%02X:%02X\n", uid[0], uid[1], uid[2], uid[3]);
     return false;
   }
+
+// Secondary secret/encrypted key array matching each registered UID
+uint8_t registered_keys[MAX_CARDS][KEY_LEN];
+
+// Sample secret key for blue card
+uint8_t blue_card_key[KEY_LEN] = {0xAA, 0xBB, 0xCC, 0xDD, 0x11, 0x22, 0x33, 0x44};
+
+// Function to register secondary key along with card UID
+void register_card_key(int card_idx, const uint8_t *key) {
+    for (int i = 0; i < KEY_LEN; i++) {
+        registered_keys[card_idx][i] = key[i];
+    }
+}
+
+// Function to compare secret keys
+bool compare_key(const uint8_t *key1, const uint8_t *key2) {
+    for (int i = 0; i < KEY_LEN; i++) {
+        if (key1[i] != key2[i]) return false;
+    }
+    return true;
+}
+
+// Simulated function to read the secondary encrypted key from card storage/EEPROM block
+// In actual hardware, this would perform a MIFARE Read command on a specific block address
+// (e.g., using PICC_CMD_MF_READ after authenticating with Key A/B).
+// For Wokwi simulation, we mock retrieving the expected key for the simulated blue card.
+bool mfrc522_read_card_key(uint8_t *key_out) {
+    for (int i = 0; i < KEY_LEN; i++) {
+        key_out[i] = blue_card_key[i];
+    }
+
+    return true;
+}
+
+// Function to verify both UID and Encrypted Key to detect clone cards
+bool check_card_authenticity(const uint8_t *uid, const uint8_t *scanned_key) {
+    for (int i = 0; i < registered_card_count; i++) {
+        if (compare_uid(registered_cards[i], uid)) {
+            // UID matches registered user; now verify secondary key
+            if (compare_key(registered_keys[i], scanned_key)) {
+                printf("Access Granted! Authentic Card Verified.\n");
+                return true;
+            } else {
+                printf("ALERT: CLONE DETECTED! UID matched but secondary secret key failed verification.\n");
+                return false;
+            }
+        }
+    }
+    printf("Access Denied! Unregistered UID.\n");
+    return false;
+}
+
+void simulate_clone_card() {
+    uint8_t clone_uid[UID_LEN] = {
+        0x01, 0x02, 0x03, 0x04
+    };
+
+    uint8_t fake_key[KEY_LEN] = {
+        0x00, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00
+    };
+
+    printf("\n========================================\n");
+    printf("[SIMULATION] Clone card presented!\n");
+    printf("Simulated UID: %02X:%02X:%02X:%02X\n",
+           clone_uid[0],
+           clone_uid[1],
+           clone_uid[2],
+           clone_uid[3]);
+
+    printf("[SIMULATION] Forged secret key: ");
+
+    for (int i = 0; i < KEY_LEN; i++) {
+        printf("%02X", fake_key[i]);
+    }
+
+    printf("\n");
+
+    check_card_authenticity(clone_uid, fake_key);
+
+    printf("========================================\n\n");
+}
+
 
 
   //assigning permanent laebl with pointer and a private handle for SPI device
@@ -297,7 +384,11 @@
     printf("%s: Initializing SPI interface...\n", TAG);
     rfid_spi_init();
     mfrc552_init_antenna();
-    register_uid(blue_uid);
+    // Force registered card slot 0 to match the Wokwi default tag if UID array is empty
+    for (int i = 0; i < UID_LEN; i++) {
+      registered_cards[0][i] = blue_uid[i];
+    }
+    register_card_key(0, blue_card_key);
 
     //assigning GPIO pin to control hardware reset line of the SPI slave device
     gpio_set_direction(RST_PIN, GPIO_MODE_OUTPUT);
@@ -315,27 +406,91 @@
     uint8_t init_version = read_from_mfrc522_register(0x37);
     printf("%s: MFRC522 version: 0x%02X\n", TAG, init_version);
 
+    //initializing gpio4 for clone simulation
+    gpio_config_t io_conf = {
+        .pin_bit_mask = (1ULL << CLONE_TOGGLE_PIN),
+        .mode = GPIO_MODE_INPUT,
+        .pull_up_en = GPIO_PULLUP_ENABLE,
+        .pull_down_en = GPIO_PULLDOWN_DISABLE,
+        .intr_type = GPIO_INTR_DISABLE
+    };
+    gpio_config(&io_conf);
+
     //loop to constantly check and log version of MFRC522 to ensure that SPI connection is working
     while (true) {
-      //reads 0x37 which is version register, verifying SPI connection
-      uint8_t version = read_from_mfrc522_register(0x37);
-      if (version != init_version) {
-        printf("%s: MFRC522 version: 0x%02X\n", TAG, version);
-        init_version = version;
-      }
 
-      if (mfrc522_card_detected()){
-        uint8_t uid[4];
-        if(mfrc522_read_uid(uid)) {
-          printf("Card Detected! UID: %02X:%02X:%02X:%02X\n", uid[0], uid[1], uid[2], uid[3]);
-          check_card_registration(uid);
+    /*
+     * Check the clone simulation button first.
+     *
+     * GPIO 4 uses an internal pull-up:
+     * HIGH = not pressed
+     * LOW  = pressed
+     */
+    if (gpio_get_level(CLONE_TOGGLE_PIN) == 0) {
+
+        simulate_clone_card();
+
+        // Wait until button is released.
+        while (gpio_get_level(CLONE_TOGGLE_PIN) == 0) {
+            vTaskDelay(pdMS_TO_TICKS(20));
         }
-        else {
-          printf("Card Detected, failed to read UID\n");
-        }
-      
+
+        // Small debounce delay.
+        vTaskDelay(pdMS_TO_TICKS(100));
     }
 
-      vTaskDelay(pdMS_TO_TICKS(500));
+
+    /*
+     * Normal MFRC522 card scanning.
+     */
+    if (mfrc522_card_detected()) {
+
+        uint8_t uid[UID_LEN];
+
+        if (mfrc522_read_uid(uid)) {
+
+            printf("Card Detected! UID: %02X:%02X:%02X:%02X\n",
+                   uid[0],
+                   uid[1],
+                   uid[2],
+                   uid[3]);
+
+            //uint8_t scanned_key[KEY_LEN];
+
+            if (compare_uid(registered_cards[0], uid)) {
+
+    uint8_t scanned_key[KEY_LEN];
+
+    if (mfrc522_read_card_key(scanned_key)) {
+
+        printf("Secret Key: ");
+
+        for (int i = 0; i < KEY_LEN; i++) {
+            printf("%02X", scanned_key[i]);
+
+            if (i < KEY_LEN - 1) {
+                printf(":");
+            }
+        }
+
+        printf("\n");
+
+        check_card_authenticity(uid, scanned_key);
+
+    } else {
+
+        printf("Error: Could not read secure block from card.\n");
+    }
+
+} else {
+
+    printf("Access Denied! Unregistered UID.\n");
+}
+
+        vTaskDelay(pdMS_TO_TICKS(1000));
+    }
+
+    vTaskDelay(pdMS_TO_TICKS(10));
+}
     }
   }

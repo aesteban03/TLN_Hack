@@ -41,13 +41,13 @@
   //For card registration & UID and encrypted string storage
   #define MAX_CARDS 3
   #define UID_LEN 4
-  uint8_t registered_cards[MAX_CARDS][UID_LEN]; //stores 5 cards of 4 byte UID's, for simplicity.
+  uint8_t registered_cards[MAX_CARDS][UID_LEN]; //stores 3 cards of 4 byte UID's, for simplicity.
   uint8_t blue_uid[UID_LEN] = {0x01, 0x02, 0x03, 0x04};
   int blue_card_index = 0; 
-  const int registered_card_count = 1;
+  int registered_card_count = 1;
   void register_uid(const uint8_t *uid) {
     for (int i = 0; i < UID_LEN; i++) {
-      registered_cards[blue_card_index][i] = blue_uid[i];
+      registered_cards[blue_card_index][i] = uid[i];
     }
   }
 
@@ -61,7 +61,7 @@
 
   bool check_card_registration(const uint8_t *uid) {  
     for (int i = 0; i < registered_card_count; i++) {
-      if (compare_uid(registered_cards[i], uid)) {
+      if (compare_uid(registered_cards[blue_card_index], uid)) {
         printf("Access Granted! UID: %02X:%02X:%02X:%02X\n", uid[0], uid[1], uid[2], uid[3]);
         return true;
       }
@@ -297,7 +297,7 @@
     printf("%s: Initializing SPI interface...\n", TAG);
     rfid_spi_init();
     mfrc552_init_antenna();
-
+    register_uid(blue_uid);
 
     //assigning GPIO pin to control hardware reset line of the SPI slave device
     gpio_set_direction(RST_PIN, GPIO_MODE_OUTPUT);

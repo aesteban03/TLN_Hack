@@ -35,6 +35,9 @@
 
   #define MFRC522_FIFO_ADDR 0x09
 
+  //specifies command byte used by RFID reader to start anti-collision process at cascade lvl 1 with a card/tag
+  #define PICC_CMD_SEL_CL1 0x93
+
   //assigning permanent laebl with pointer and a private handle for SPI device
   static const char *TAG = "RFID_TAG";
   static  spi_device_handle_t spi;
@@ -209,6 +212,53 @@
     
   }
 
+  //for the ESP32 to see the UID of the card being scanned, UID is Unique Identifier
+  bool mfrc522_read_uid(uint8_t *uid_out) {
+    uint8_t buffer[5];
+
+    //flushes the internal buffer FIFO buffer, ensures that no leftover or corrupted data skews the new data
+    write_to_mfrc522_register(MFRC522_REG_FIFO_LEVEL, 0x80);
+
+    //anticollision level 1 command 0x93 and NVB (number of valid bits)
+    buffer[0] = PICC_CMD_SEL_CL1;
+    buffer[1] = 0x20;
+
+    //clear interrupt requests and reset bit framing
+    write_to_mfrc522_register(0x04, 0x7F);
+    write_to_mfrc522_register(MFRC522_REG_BIT_FRAMING, 0x00);
+
+    //load command into FIFO and transceive
+    write_to_mfrc522_register(MFRC522_REG_COMMAND, 0x00); //stop command
+    mfrc522_write_fifo(buffer, 2);
+
+    write_to_mfrc522_register(MFRC522_REG_COMMAND, PCD_TRANSCEIVE);
+
+    //start transmission
+    uint8_t bit_framing = read_from_mfrc522_register(MFRC522_REG_BIT_FRAMING);
+    write_to_mfrc522_register(MFRC522_REG_BIT_FRAMING, bit_framing | 0x80);
+
+    //wait for card response
+    vTaskDelay(pdMS_TO_TICKS(10));
+
+    //check if 5 bytes were received back, 4 uid bytes + block check character
+    uint8_t fifo_level = read_from_mfrc522_register(MFRC522_REG_FIFO_LEVEL);
+    if (fifo_level < 5) {
+      return false;
+    }
+
+    //read 5 bytes from fifo
+    mfrc522_read_fifo(buffer, 5);
+
+    //copy first 4 bytes into output array
+    for (int i = 0; i < 4; i++) {
+      uid_out[i] = buffer[i];
+    }
+
+    return true;
+
+      
+  }
+
 
   void app_main() {
     printf("%s: Initializing SPI interface...\n", TAG);
@@ -228,15 +278,29 @@
     //soft reset command, command register 0x01, soft reset 0x0F
     write_to_mfrc522_register(0x01, PCD_SOFT_RESET);
 
+    //initial version check of MFRC522
+    uint8_t init_version = read_from_mfrc522_register(0x37);
+    printf("%s: MFRC522 version: 0x%02X\n", TAG, init_version);
+
     //loop to constantly check and log version of MFRC522 to ensure that SPI connection is working
     while (true) {
       //reads 0x37 which is version register, verifying SPI connection
       uint8_t version = read_from_mfrc522_register(0x37);
-      printf("%s: MFRC522 version: 0x%02X\n", TAG, version);
+      if (version != init_version) {
+        printf("%s: MFRC522 version: 0x%02X\n", TAG, version);
+        init_version = version;
+      }
 
       if (mfrc522_card_detected()){
-      printf("Card Detected!\n");
-    }; 
+        uint8_t uid[4];
+        if(mfrc522_read_uid(uid)) {
+          printf("Card Detected! UID: %02X:%02X:%02X:%02X\n", uid[0], uid[1], uid[2], uid[3]);
+        }
+        else {
+          printf("Card Detected, failed to read UID\n");
+        }
+      
+    }
 
       vTaskDelay(pdMS_TO_TICKS(500));
     }

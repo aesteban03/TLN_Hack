@@ -38,6 +38,39 @@
   //specifies command byte used by RFID reader to start anti-collision process at cascade lvl 1 with a card/tag
   #define PICC_CMD_SEL_CL1 0x93
 
+  //For card registration & UID and encrypted string storage
+  #define MAX_CARDS 3
+  #define UID_LEN 4
+  uint8_t registered_cards[MAX_CARDS][UID_LEN]; //stores 5 cards of 4 byte UID's, for simplicity.
+  uint8_t blue_uid[UID_LEN] = {0x01, 0x02, 0x03, 0x04};
+  int blue_card_index = 0; 
+  const int registered_card_count = 1;
+  void register_uid(const uint8_t *uid) {
+    for (int i = 0; i < UID_LEN; i++) {
+      registered_cards[blue_card_index][i] = blue_uid[i];
+    }
+  }
+
+  //compares 2 uid's to see if they are identical, to be used when verifyingf card registration
+  bool compare_uid(const uint8_t *id1, const uint8_t *id2) {
+    for (int i = 0; i < UID_LEN; i++) {
+      if (id1[i] != id2[i]) return false;
+    }
+    return true;
+  } 
+
+  bool check_card_registration(const uint8_t *uid) {  
+    for (int i = 0; i < registered_card_count; i++) {
+      if (compare_uid(registered_cards[i], uid)) {
+        printf("Access Granted! UID: %02X:%02X:%02X:%02X\n", uid[0], uid[1], uid[2], uid[3]);
+        return true;
+      }
+    }
+    printf("Access Denied! UID: %02X:%02X:%02X:%02X\n", uid[0], uid[1], uid[2], uid[3]);
+    return false;
+  }
+
+
   //assigning permanent laebl with pointer and a private handle for SPI device
   static const char *TAG = "RFID_TAG";
   static  spi_device_handle_t spi;
@@ -295,6 +328,7 @@
         uint8_t uid[4];
         if(mfrc522_read_uid(uid)) {
           printf("Card Detected! UID: %02X:%02X:%02X:%02X\n", uid[0], uid[1], uid[2], uid[3]);
+          check_card_registration(uid);
         }
         else {
           printf("Card Detected, failed to read UID\n");
